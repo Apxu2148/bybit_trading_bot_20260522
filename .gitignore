@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/*.log
+state/bot_state.json
+secrets/api_keys.py
+.env
+
+# Keep placeholder files that make empty runtime directories visible to Git.
+!logs/.gitkeep
+!state/.gitkeep
+!secrets/api_keys.example.py
+
+# Common IDE and editor files.
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# OS metadata files.
+.DS_Store
+Thumbs.db
+desktop.ini
