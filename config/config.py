@@ -96,6 +96,15 @@ MAX_API_REQUESTS_PER_SECOND = 5
 MAX_ORDER_REQUESTS_PER_SECOND = 2
 MAX_CANCEL_ALL_REQUESTS_PER_SECOND = 0.5
 
+# API_MAX_RETRIES controls how many times failed REST requests are retried.
+# Keep this value modest so transient network issues can recover without hiding
+# persistent API or authentication problems.
+API_MAX_RETRIES = 3
+
+# API_RETRY_DELAY_SECONDS controls the delay between retry attempts. Retry logs
+# must never include API keys, API secrets, signatures, or full request headers.
+API_RETRY_DELAY_SECONDS = 1.0
+
 # Candidate leverage values used in future stages.
 # The bot will try them from left to right and use the first value accepted by Bybit.
 # This list is editable because different futures have different maximum leverage.

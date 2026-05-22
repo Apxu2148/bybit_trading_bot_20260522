@@ -4,13 +4,13 @@
 
 `bybit_trading_bot_20260522` is a future Python trading bot for Bybit USDT perpetual futures. The final bot is expected to load market data, select target leverage through a replaceable strategy module, build a rebalance plan, and execute the plan through limit orders.
 
-Stage 1 is infrastructure only. It creates the package layout, configuration, logging, runtime state management, placeholder modules, and tests. It does not implement real Bybit API calls, real order placement, or trading logic.
+Stage 3 adds a thin Bybit REST client wrapper on top of the infrastructure created earlier. It still does not implement trading strategy logic, real order execution flows, or Docker files.
 
 ## Module List
 
 - `config/config.py`: Central project settings and placeholder safety parameters.
 - `secrets/api_keys.example.py`: Template for local Bybit API credentials.
-- `bybit/client.py`: Future REST client boundary.
+- `bybit/client.py`: The only low-level Bybit REST wrapper.
 - `market_data/instruments.py`: Future Bybit USDT perpetual futures discovery.
 - `market_data/candles.py`: Future candle loading and latest-candle completeness rules.
 - `market_data/filters.py`: Future eligibility filters and exclusion logging.
@@ -59,7 +59,15 @@ Before order execution starts, `leverage_manager.py` will try to enable cross ma
 
 `state_manager.py` stores runtime JSON state in `state/bot_state.json`. `logger.py` configures separate log files for main lifecycle messages, execution messages, and filtering messages.
 
-## Stage 1 Status
+## Bybit Client Boundary
+
+`bybit/client.py` is the only module that should import or call `pybit` directly. Other modules must use `BybitClient` methods instead of constructing their own exchange sessions. This isolates exchange-specific authentication, retry behavior, rate-limit preparation, logging rules, and API parameter naming in one place.
+
+Public market methods can run without API credentials when Bybit allows anonymous access. Private account and order-related methods require `secrets/api_keys.py`; if credentials are missing, the wrapper raises a clear `MissingBybitCredentialsError`.
+
+The wrapper must never log API keys, API secrets, signatures, or full request headers.
+
+## Stage 3 Status
 
 Implemented:
 
@@ -69,12 +77,12 @@ Implemented:
 - Logger setup with rotating files.
 - JSON state manager.
 - Placeholder modules with documented future responsibilities.
+- Bybit REST client wrapper foundation with pybit.
 - Pytest configuration and base tests.
 
 Not implemented:
 
-- Real Bybit API calls.
-- Real order placement.
 - Trading strategy logic.
+- Real order execution flows.
 - Rebalance planning business logic.
 - Docker files.

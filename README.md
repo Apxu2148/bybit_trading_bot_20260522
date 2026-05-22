@@ -1,8 +1,8 @@
 # bybit_trading_bot_20260522
 
-Stage 1 skeleton for a future Python trading bot for Bybit USDT perpetual futures.
+Stage 3 foundation for a future Python trading bot for Bybit USDT perpetual futures.
 
-This stage contains project infrastructure only: configuration, logging, JSON state storage, placeholder modules, and tests. Real Bybit API calls, order placement, and trading logic are not implemented yet.
+This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, placeholder modules, and tests. Trading logic and real order execution are not implemented yet.
 
 ## Setup
 
@@ -30,13 +30,15 @@ API_SECRET = "your_bybit_api_secret"
 
 The real `secrets/api_keys.py` file is ignored by Git.
 
+Never commit real API keys. The Bybit client can run public methods without credentials, but private methods require `secrets/api_keys.py`.
+
 ## Run
 
 ```powershell
 python main.py
 ```
 
-The entry point initializes loggers, loads JSON state, and prints that the Stage 1 skeleton is ready. It does not connect to Bybit.
+The entry point initializes loggers, loads JSON state, and prints that the infrastructure check is ready. It does not connect to Bybit.
 
 ## Tests
 
@@ -49,7 +51,7 @@ pytest
 ```text
 config/          Project-level constants.
 secrets/         Example API key file; real credentials stay ignored.
-bybit/           Future Bybit REST client boundary.
+bybit/           Bybit REST client wrapper boundary.
 market_data/     Future instrument, candle, and filter modules.
 strategy/        Replaceable target-leverage strategy modules.
 portfolio/       Future position reading and rebalance planning.
