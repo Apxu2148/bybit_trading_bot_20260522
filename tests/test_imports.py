@@ -19,6 +19,7 @@ def test_key_modules_can_be_imported() -> None:
         "execution.orders",
         "execution.leverage_manager",
         "execution.limit_rebalancer",
+        "execution.rebalance_orchestrator",
         "execution.cleanup",
         "risk.risk_engine",
         "triggers.rebalance_trigger",

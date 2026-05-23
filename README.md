@@ -1,8 +1,8 @@
 # bybit_trading_bot_20260522
 
-Stage 7B foundation for a future Python trading bot for Bybit USDT perpetual futures.
+Stage 8 foundation for a future Python trading bot for Bybit USDT perpetual futures.
 
-This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, low-level execution utilities, the MA limit rebalancer, and tests. The main trading loop is not implemented yet.
+This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, low-level execution utilities, the MA limit rebalancer, rebalance orchestration, and tests. The main trading loop is not implemented yet.
 
 ## Setup
 
@@ -64,6 +64,12 @@ An optional live MA limit rebalancer test also exists and requires its own exact
 python temp_test_limit_rebalancer_manual.py
 ```
 
+An optional live rebalance orchestrator test exists and requires explicit confirmations:
+
+```powershell
+python temp_test_rebalance_orchestrator_manual.py
+```
+
 ## Tests
 
 ```powershell
@@ -79,7 +85,7 @@ bybit/           Bybit REST client wrapper boundary.
 market_data/     Instrument discovery, candle loading, and universe filters.
 strategy/        Strategy loader and replaceable target-leverage modules.
 portfolio/       Position reading and rebalance plan calculation.
-execution/       Low-level order, leverage, cleanup, and future rebalance modules.
+execution/       Low-level execution, limit rebalancing, and orchestration modules.
 risk/            Future risk engine boundary.
 triggers/        Future rebalance trigger boundary.
 state/           JSON runtime state files.

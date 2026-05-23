@@ -12,6 +12,7 @@ from execution.limit_rebalancer import (
     calculate_remaining_delta,
     calculate_simple_ma,
     calculate_target_position_qty,
+    extract_tick_size_and_qty_step,
     get_latest_close,
     is_rebalance_complete,
     rebalance_by_limit_order,
@@ -73,6 +74,14 @@ def _patch_common_rebalancer_dependencies(monkeypatch: MonkeyPatch, positions: l
     monkeypatch.setattr(rebalancer, "get_current_positions", fake_get_current_positions)
     monkeypatch.setattr(rebalancer, "cancel_all_orders_for_symbol", fake_cancel_all_orders_for_symbol)
     monkeypatch.setattr(rebalancer, "place_limit_order", fake_place_limit_order)
+    monkeypatch.setattr(
+        rebalancer,
+        "get_instrument_info",
+        lambda client, symbol: {
+            "priceFilter": {"tickSize": "0.1"},
+            "lotSizeFilter": {"qtyStep": "0.1"},
+        },
+    )
     monkeypatch.setattr(rebalancer, "try_set_cross_margin_if_possible", fake_try_set_cross_margin_if_possible)
     monkeypatch.setattr(rebalancer, "try_set_leverage_from_candidates", fake_try_set_leverage_from_candidates)
     monkeypatch.setattr(rebalancer, "_sleep", lambda seconds: calls.__setitem__("sleep", calls["sleep"] + 1))
@@ -88,6 +97,29 @@ def _patch_common_rebalancer_dependencies(monkeypatch: MonkeyPatch, positions: l
 
 def test_calculate_simple_ma_returns_correct_ma() -> None:
     assert calculate_simple_ma(_candles([1.0, 2.0, 3.0, 4.0]), 3) == pytest.approx(3.0)
+
+
+def test_extract_tick_size_and_qty_step_parses_nested_bybit_metadata() -> None:
+    instrument_info = {
+        "priceFilter": {"tickSize": "0.00001"},
+        "lotSizeFilter": {"qtyStep": "1"},
+    }
+
+    assert extract_tick_size_and_qty_step(instrument_info) == (0.00001, 1.0)
+
+
+def test_extract_tick_size_and_qty_step_raises_when_tick_size_missing() -> None:
+    instrument_info = {"priceFilter": {}, "lotSizeFilter": {"qtyStep": "1"}}
+
+    with pytest.raises(ValueError, match="priceFilter.tickSize"):
+        extract_tick_size_and_qty_step(instrument_info)
+
+
+def test_extract_tick_size_and_qty_step_raises_when_qty_step_missing() -> None:
+    instrument_info = {"priceFilter": {"tickSize": "0.00001"}, "lotSizeFilter": {}}
+
+    with pytest.raises(ValueError, match="lotSizeFilter.qtyStep"):
+        extract_tick_size_and_qty_step(instrument_info)
 
 
 def test_calculate_simple_ma_returns_none_if_not_enough_candles() -> None:
@@ -220,3 +252,99 @@ def test_timeout_status_is_returned_when_max_duration_is_enabled_and_exceeded(
 
     assert result["status"] == "timeout"
     assert calls["cancel"] == ["DOGEUSDT", "DOGEUSDT"]
+
+
+def test_rebalance_by_limit_order_skips_leverage_when_prepare_leverage_false(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = _patch_common_rebalancer_dependencies(monkeypatch, positions=[0.0, 1.0])
+    monkeypatch.setattr(rebalancer, "get_minute_candles", lambda client, symbol, limit: _candles([10.0, 10.0, 10.0]))
+
+    rebalance_by_limit_order(FakeClient(), "DOGEUSDT", 1.0, prepare_leverage=False)
+
+    assert calls["margin"] == 0
+    assert calls["leverage"] == 0
+
+
+def test_rebalance_by_limit_order_prepares_leverage_when_prepare_leverage_true(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = _patch_common_rebalancer_dependencies(monkeypatch, positions=[0.0, 1.0])
+    monkeypatch.setattr(rebalancer, "get_minute_candles", lambda client, symbol, limit: _candles([10.0, 10.0, 10.0]))
+
+    rebalance_by_limit_order(FakeClient(), "DOGEUSDT", 1.0, prepare_leverage=True)
+
+    assert calls["margin"] == 1
+    assert calls["leverage"] == 1
+
+
+def test_rebalance_by_limit_order_rounds_price_before_placing_order(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = _patch_common_rebalancer_dependencies(monkeypatch, positions=[0.0, 0.0, 1.0])
+    monkeypatch.setattr(
+        rebalancer,
+        "get_instrument_info",
+        lambda client, symbol: {
+            "priceFilter": {"tickSize": "0.05"},
+            "lotSizeFilter": {"qtyStep": "0.1"},
+        },
+    )
+    monkeypatch.setattr(rebalancer, "get_minute_candles", lambda client, symbol, limit: _candles([10.01, 10.03, 10.05]))
+
+    rebalance_by_limit_order(FakeClient(), "DOGEUSDT", 1.0)
+
+    assert calls["orders"][0]["price"] == pytest.approx(10.05)
+
+
+def test_rebalance_by_limit_order_rounds_signed_qty_down_before_placing_order(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = _patch_common_rebalancer_dependencies(monkeypatch, positions=[0.0, 0.0, -1.23])
+    monkeypatch.setattr(
+        rebalancer,
+        "get_instrument_info",
+        lambda client, symbol: {
+            "priceFilter": {"tickSize": "0.1"},
+            "lotSizeFilter": {"qtyStep": "0.5"},
+        },
+    )
+    monkeypatch.setattr(rebalancer, "get_minute_candles", lambda client, symbol, limit: _candles([12.0, 10.0, 8.0]))
+
+    rebalance_by_limit_order(FakeClient(), "DOGEUSDT", -1.23)
+
+    assert calls["orders"][0]["qty"] == pytest.approx(-1.0)
+
+
+def test_rebalance_by_limit_order_does_not_place_order_if_rounded_qty_is_zero(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = _patch_common_rebalancer_dependencies(monkeypatch, positions=[0.0, 0.0])
+    monkeypatch.setattr(config, "MIN_ORDER_NOTIONAL_USDT", 0.001)
+    monkeypatch.setattr(
+        rebalancer,
+        "get_instrument_info",
+        lambda client, symbol: {
+            "priceFilter": {"tickSize": "0.1"},
+            "lotSizeFilter": {"qtyStep": "1"},
+        },
+    )
+    monkeypatch.setattr(rebalancer, "get_minute_candles", lambda client, symbol, limit: _candles([8.0, 10.0, 12.0]))
+
+    result = rebalance_by_limit_order(FakeClient(), "DOGEUSDT", 0.4)
+
+    assert result["status"] == "completed"
+    assert calls["orders"] == []
+
+
+def test_rebalance_by_limit_order_fails_safely_if_instrument_metadata_unavailable(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = _patch_common_rebalancer_dependencies(monkeypatch, positions=[0.0])
+    monkeypatch.setattr(rebalancer, "get_instrument_info", lambda client, symbol: None)
+
+    result = rebalance_by_limit_order(FakeClient(), "DOGEUSDT", 1.0)
+
+    assert result["status"] == "failed"
+    assert "Instrument metadata is unavailable" in result["error"]
+    assert calls["orders"] == []

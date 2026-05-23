@@ -24,3 +24,8 @@ def test_invalid_step_raises_value_error() -> None:
         round_qty_to_step(1.0, 0.0)
     with pytest.raises(ValueError):
         round_price_to_tick(1.0, -0.01)
+
+
+def test_doge_like_price_and_qty_values_round_to_exchange_steps() -> None:
+    assert round_price_to_tick(0.10105400000000002, 0.00001) == pytest.approx(0.10105)
+    assert round_qty_abs_down(98.85465960644714, 1.0) == pytest.approx(98.0)

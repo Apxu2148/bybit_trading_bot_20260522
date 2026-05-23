@@ -4,7 +4,7 @@
 
 `bybit_trading_bot_20260522` is a future Python trading bot for Bybit USDT perpetual futures. The final bot is expected to load market data, select target leverage through a replaceable strategy module, build a rebalance plan, and execute the plan through limit orders.
 
-Stage 7B adds the moving-average limit rebalancer on top of the low-level execution utilities. It still does not implement the main trading loop or Docker files.
+Stage 8 adds rebalance orchestration on top of the strategy, portfolio, planning, and execution layers. It still does not integrate this orchestration into the main trading loop or Docker files.
 
 ## Module List
 
@@ -21,6 +21,7 @@ Stage 7B adds the moving-average limit rebalancer on top of the low-level execut
 - `execution/orders.py`: Low-level order intent helpers for limit, market, cancel-all, and open-order reads.
 - `execution/leverage_manager.py`: Leverage candidate and best-effort cross-margin helpers.
 - `execution/limit_rebalancer.py`: MA-based limit-order rebalance executor.
+- `execution/rebalance_orchestrator.py`: High-level bridge from target leverage to rebalance execution.
 - `execution/cleanup.py`: Small leftover position cleanup helper.
 - `risk/risk_engine.py`: Placeholder for future risk stops.
 - `triggers/rebalance_trigger.py`: Future rebalance trigger rules.
@@ -180,7 +181,7 @@ This is a calculation artifact only. Rebalance planning does not place orders, c
 
 `execution/leverage_manager.py` tries configured leverage candidates from `LEVERAGE_CANDIDATES` in order and returns the first accepted value. If all candidates fail, it logs a warning and returns `None`. Its cross-margin helper is best-effort and returns `False` if Bybit rejects or does not support the request.
 
-`execution/cleanup.py` is for future tiny leftover positions. It finds positions below `MIN_POSITION_NOTIONAL_USDT`, tries normal market closes first, then reduce-only market closes, and returns a summary of `closed`, `failed`, and `skipped` symbols. Cleanup is not called automatically in Stage 7B.
+`execution/cleanup.py` is for future tiny leftover positions. It finds positions below `MIN_POSITION_NOTIONAL_USDT`, tries normal market closes first, then reduce-only market closes, and returns a summary of `closed`, `failed`, and `skipped` symbols. Cleanup is only called by orchestration when `ENABLE_SMALL_POSITION_CLEANUP == 1`.
 
 ## MA Limit Rebalancer
 
@@ -188,15 +189,42 @@ This is a calculation artifact only. Rebalance planning does not place orders, c
 
 For buys, the rebalancer waits until the latest usable one-minute close is above the moving average, then places a limit buy at the moving average price. For sells, it waits until the latest usable close is below the moving average, then places a limit sell at the moving average price. The minute candles come from `market_data/candles.py`, so the centralized unfinished-candle rule still applies.
 
+Before each limit order is placed, the rebalancer loads Bybit instrument metadata through `market_data/instruments.py`, extracts `priceFilter.tickSize` and `lotSizeFilter.qtyStep`, rounds the MA price to the tick size, and rounds signed remaining quantity down by absolute quantity step. If metadata is unavailable or the rounded quantity is zero, it does not place an unrounded order.
+
 After each order attempt, the rebalancer sleeps for `LIMIT_ORDER_CHECK_INTERVAL_SECONDS`, cancels open orders for the symbol, rereads the current position, recalculates the remaining delta, and repeats. This handles partial fills by comparing the live current position to the fixed target position instead of assuming an order filled completely.
 
 The module has process-local active-symbol protection through `ACTIVE_REBALANCE_SYMBOLS`. Starting a second rebalance for the same symbol raises `RebalanceAlreadyActiveError`, and a `finally` block removes the symbol when the function exits.
 
 If `ENABLE_MAX_REBALANCE_DURATION == 1`, the rebalancer stops after `MAX_REBALANCE_DURATION_SECONDS`, cancels open orders for the symbol, and returns status `"timeout"`. If the flag is `0`, no timeout is applied.
 
-Stage 7B does not create automatic live-trading behavior. The rebalancer is available as a reusable function and is not wired into `main.py`.
+The rebalancer is available as a reusable function and is not wired directly into `main.py`.
 
-## Stage 7B Status
+## Rebalance Orchestration
+
+`execution/rebalance_orchestrator.py` bridges strategy output and execution. It receives `target_leverage`, reads exchange equity, adds `RESERVE_BALANCE_USDT`, reads current positions, loads hourly last-close prices for required symbols, builds a rebalance plan, cancels open orders, executes non-zero deltas sequentially through `rebalance_by_limit_order`, cancels open orders again, and optionally runs small-position cleanup.
+
+The orchestration flow is:
+
+```text
+target_leverage
+  -> target_positions
+  -> delta_qty
+  -> MA limit rebalancer
+```
+
+An empty target map, `target_leverage = {}`, means no desired exposure. Existing current positions are converted into close-position deltas by the rebalance plan.
+
+Leverage preparation is only requested when target absolute exposure is greater than current absolute exposure:
+
+```text
+abs(target_position_qty) > abs(current_position_qty)
+```
+
+This prepares leverage for opening or increasing exposure and skips leverage preparation when reducing or closing exposure. Flips prepare leverage only when the target side has greater absolute size than the current side.
+
+Stage 8 still does not create automatic live-trading behavior. `run_rebalance(...)` is reusable and manually callable, but it is not wired into `main.py`.
+
+## Stage 8 Status
 
 Implemented:
 
@@ -218,6 +246,7 @@ Implemented:
 - Small-position cleanup helper.
 - Exchange rounding helpers.
 - MA-based limit rebalancer with active-symbol protection and optional timeout.
+- Rebalance orchestration from target leverage to sequential delta execution.
 - Pytest configuration and base tests.
 
 Not implemented:
