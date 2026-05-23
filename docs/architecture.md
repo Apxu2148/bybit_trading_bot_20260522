@@ -4,7 +4,7 @@
 
 `bybit_trading_bot_20260522` is a future Python trading bot for Bybit USDT perpetual futures. The final bot is expected to load market data, select target leverage through a replaceable strategy module, build a rebalance plan, and execute the plan through limit orders.
 
-Stage 4 adds read-only market data loading and universe filtering on top of the infrastructure created earlier. It still does not implement trading strategy logic, real order execution flows, or Docker files.
+Stage 5 adds replaceable strategy module loading and the first target-leverage strategy on top of the read-only market data pipeline. It still does not implement real order execution flows or Docker files.
 
 ## Module List
 
@@ -14,7 +14,8 @@ Stage 4 adds read-only market data loading and universe filtering on top of the 
 - `market_data/instruments.py`: Bybit USDT perpetual futures discovery from public instrument metadata.
 - `market_data/candles.py`: Public kline loading, candle normalization, sorting, and latest-candle completeness rules.
 - `market_data/filters.py`: Config-driven eligibility filters and exclusion logging.
-- `strategy/momentum_volatility.py`: Placeholder strategy selected by default.
+- `strategy/loader.py`: Replaceable strategy module loader for `TARGET_LEVERAGE_MODULE`.
+- `strategy/momentum_volatility.py`: Default momentum-volatility target leverage strategy.
 - `portfolio/positions.py`: Future current-position reader.
 - `portfolio/rebalance_plan.py`: Future conversion from target leverage to delta quantity.
 - `execution/orders.py`: Future low-level order operations.
@@ -39,7 +40,13 @@ rebalance_trigger.py
   -> orders.py
 ```
 
-`config.py` stores shared parameters. `TARGET_LEVERAGE_MODULE` selects the strategy module dynamically through its dotted Python module path. The selected strategy module must expose `calculate_target_leverage(...)`.
+`config.py` stores shared parameters. `TARGET_LEVERAGE_MODULE` selects the strategy module dynamically through its dotted Python module path. The default is:
+
+```python
+"strategy.momentum_volatility"
+```
+
+`strategy/loader.py` imports this module with `importlib.import_module`, verifies that it exposes a callable `calculate_target_leverage(...)`, and raises clear strategy-loader exceptions when the module or function is invalid.
 
 The selected strategy module forms a target leverage dictionary such as:
 
@@ -83,7 +90,47 @@ eligible_symbols: list[str]
 
 This list contains Bybit USDT perpetual symbols that passed all active filters. Filter exclusions and the final count are written through the existing filtering logger.
 
-## Stage 4 Status
+## Strategy Flow
+
+Every replaceable strategy module must expose:
+
+```python
+calculate_target_leverage(...) -> dict[str, float]
+```
+
+The default `strategy/momentum_volatility.py` receives eligible symbols and hourly candles, scores each symbol over the latest `SCORE_LOOKBACK_HOURS` candles, and selects the one symbol with the largest absolute score.
+
+The score formula is:
+
+```text
+score = trend * abs(trend) / volatility
+```
+
+Where:
+
+- `trend = ln(close_last / close_first)`
+- `volatility = standard deviation of hourly log returns`
+- hourly log return `r_i = ln(close_i / close_{i-1})`
+
+If volatility is zero, candles are malformed, prices are non-positive, or there is not enough history, the symbol is skipped. The strategy supports internal direction modes: `long_and_short`, `long_only`, and `short_only`.
+
+The strategy output is:
+
+```python
+target_leverage: dict[str, float]
+```
+
+Examples:
+
+```python
+{"BTCUSDT": 1.0}
+{"SOLUSDT": -1.0}
+{}
+```
+
+This is a target map only. Stage 5 does not place orders or modify exchange state.
+
+## Stage 5 Status
 
 Implemented:
 
@@ -96,11 +143,12 @@ Implemented:
 - Public instrument discovery for active USDT perpetual futures.
 - Public candle loading, normalization, sorting, and unfinished-candle filtering.
 - Config-driven market universe filters with filtering logs.
+- Replaceable strategy module loader.
+- Momentum-volatility target leverage strategy.
 - Pytest configuration and base tests.
 
 Not implemented:
 
-- Trading strategy logic.
 - Real order execution flows.
 - Rebalance planning business logic.
 - Docker files.

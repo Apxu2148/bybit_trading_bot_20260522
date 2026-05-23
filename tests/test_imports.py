@@ -12,6 +12,7 @@ def test_key_modules_can_be_imported() -> None:
         "market_data.instruments",
         "market_data.candles",
         "market_data.filters",
+        "strategy.loader",
         "strategy.momentum_volatility",
         "portfolio.positions",
         "portfolio.rebalance_plan",
