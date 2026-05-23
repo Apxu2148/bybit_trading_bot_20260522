@@ -1,8 +1,8 @@
 # bybit_trading_bot_20260522
 
-Stage 3 foundation for a future Python trading bot for Bybit USDT perpetual futures.
+Stage 4 foundation for a future Python trading bot for Bybit USDT perpetual futures.
 
-This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, placeholder modules, and tests. Trading logic and real order execution are not implemented yet.
+This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, and tests. Trading logic and real order execution are not implemented yet.
 
 ## Setup
 
@@ -38,7 +38,7 @@ Never commit real API keys. The Bybit client can run public methods without cred
 python main.py
 ```
 
-The entry point initializes loggers, loads JSON state, and prints that the infrastructure check is ready. It does not connect to Bybit.
+The entry point initializes loggers, loads JSON state, and prints that the infrastructure check is ready. It does not place orders.
 
 ## Tests
 
@@ -52,7 +52,7 @@ pytest
 config/          Project-level constants.
 secrets/         Example API key file; real credentials stay ignored.
 bybit/           Bybit REST client wrapper boundary.
-market_data/     Future instrument, candle, and filter modules.
+market_data/     Instrument discovery, candle loading, and universe filters.
 strategy/        Replaceable target-leverage strategy modules.
 portfolio/       Future position reading and rebalance planning.
 execution/       Future order, leverage, rebalance, and cleanup modules.

@@ -4,16 +4,16 @@
 
 `bybit_trading_bot_20260522` is a future Python trading bot for Bybit USDT perpetual futures. The final bot is expected to load market data, select target leverage through a replaceable strategy module, build a rebalance plan, and execute the plan through limit orders.
 
-Stage 3 adds a thin Bybit REST client wrapper on top of the infrastructure created earlier. It still does not implement trading strategy logic, real order execution flows, or Docker files.
+Stage 4 adds read-only market data loading and universe filtering on top of the infrastructure created earlier. It still does not implement trading strategy logic, real order execution flows, or Docker files.
 
 ## Module List
 
 - `config/config.py`: Central project settings and placeholder safety parameters.
 - `secrets/api_keys.example.py`: Template for local Bybit API credentials.
 - `bybit/client.py`: The only low-level Bybit REST wrapper.
-- `market_data/instruments.py`: Future Bybit USDT perpetual futures discovery.
-- `market_data/candles.py`: Future candle loading and latest-candle completeness rules.
-- `market_data/filters.py`: Future eligibility filters and exclusion logging.
+- `market_data/instruments.py`: Bybit USDT perpetual futures discovery from public instrument metadata.
+- `market_data/candles.py`: Public kline loading, candle normalization, sorting, and latest-candle completeness rules.
+- `market_data/filters.py`: Config-driven eligibility filters and exclusion logging.
 - `strategy/momentum_volatility.py`: Placeholder strategy selected by default.
 - `portfolio/positions.py`: Future current-position reader.
 - `portfolio/rebalance_plan.py`: Future conversion from target leverage to delta quantity.
@@ -67,7 +67,23 @@ Public market methods can run without API credentials when Bybit allows anonymou
 
 The wrapper must never log API keys, API secrets, signatures, or full request headers.
 
-## Stage 3 Status
+## Market Data Flow
+
+`market_data/instruments.py` calls `BybitClient.get_instruments_info(category="linear")`, reads the Bybit V5 `result.list` payload, and keeps only instruments that are USDT-settled or USDT-quoted linear perpetual contracts with `status == "Trading"`. Malformed rows are logged and skipped.
+
+`market_data/candles.py` calls `BybitClient.get_kline(category="linear", ...)`, normalizes Bybit kline rows into dictionaries with `start_time_ms`, OHLC, `volume`, and `turnover`, then sorts candles by `start_time_ms` ascending.
+
+The latest candle rule is mandatory across market data consumers: the newest candle is included only after more than 50 percent of its interval has elapsed. If 50 percent or less has elapsed, that candle is excluded from calculations.
+
+`market_data/filters.py` receives symbols and hourly candles, then applies active config filters: minimum history, average hourly turnover, stablecoin price range, blacklist, optional spread, optional funding rate, and optional EMA distance. The output is:
+
+```python
+eligible_symbols: list[str]
+```
+
+This list contains Bybit USDT perpetual symbols that passed all active filters. Filter exclusions and the final count are written through the existing filtering logger.
+
+## Stage 4 Status
 
 Implemented:
 
@@ -76,8 +92,10 @@ Implemented:
 - Credential example file.
 - Logger setup with rotating files.
 - JSON state manager.
-- Placeholder modules with documented future responsibilities.
 - Bybit REST client wrapper foundation with pybit.
+- Public instrument discovery for active USDT perpetual futures.
+- Public candle loading, normalization, sorting, and unfinished-candle filtering.
+- Config-driven market universe filters with filtering logs.
 - Pytest configuration and base tests.
 
 Not implemented:
