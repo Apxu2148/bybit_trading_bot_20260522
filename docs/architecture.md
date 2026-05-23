@@ -4,7 +4,7 @@
 
 `bybit_trading_bot_20260522` is a future Python trading bot for Bybit USDT perpetual futures. The final bot is expected to load market data, select target leverage through a replaceable strategy module, build a rebalance plan, and execute the plan through limit orders.
 
-Stage 5 adds replaceable strategy module loading and the first target-leverage strategy on top of the read-only market data pipeline. It still does not implement real order execution flows or Docker files.
+Stage 6 adds read-only portfolio position/equity parsing and rebalance plan calculation on top of the strategy pipeline. It still does not implement real order execution flows or Docker files.
 
 ## Module List
 
@@ -16,8 +16,8 @@ Stage 5 adds replaceable strategy module loading and the first target-leverage s
 - `market_data/filters.py`: Config-driven eligibility filters and exclusion logging.
 - `strategy/loader.py`: Replaceable strategy module loader for `TARGET_LEVERAGE_MODULE`.
 - `strategy/momentum_volatility.py`: Default momentum-volatility target leverage strategy.
-- `portfolio/positions.py`: Future current-position reader.
-- `portfolio/rebalance_plan.py`: Future conversion from target leverage to delta quantity.
+- `portfolio/positions.py`: Read-only current-position and exchange-equity reader.
+- `portfolio/rebalance_plan.py`: Target-position and delta-quantity plan builder.
 - `execution/orders.py`: Future low-level order operations.
 - `execution/leverage_manager.py`: Future leverage and cross-margin setup.
 - `execution/limit_rebalancer.py`: Future MA-based limit-order rebalance executor.
@@ -60,7 +60,7 @@ or:
 {"SOLUSDT": -1.0}
 ```
 
-`positions.py` will read current positions from Bybit and normalize them. `rebalance_plan.py` will convert target leverage to target quantity using the latest close price, then calculate delta quantity. `limit_rebalancer.py` will execute delta quantity through moving-average-based limit orders. `orders.py` will contain low-level order operations.
+`positions.py` reads current positions from Bybit and normalizes them. `rebalance_plan.py` converts target leverage to target quantity using the latest close price, then calculates delta quantity. `limit_rebalancer.py` will later execute delta quantity through moving-average-based limit orders. `orders.py` will contain low-level order operations.
 
 Before order execution starts, `leverage_manager.py` will try to enable cross margin if possible and set the highest accepted leverage from `LEVERAGE_CANDIDATES`.
 
@@ -128,9 +128,47 @@ Examples:
 {}
 ```
 
-This is a target map only. Stage 5 does not place orders or modify exchange state.
+This is a target map only. Strategy calculation does not place orders or modify exchange state.
 
-## Stage 5 Status
+## Portfolio And Rebalance Planning
+
+`portfolio/positions.py` uses `BybitClient` read-only private endpoints to parse:
+
+- current linear positions as signed quantities, where long positions are positive and short positions are negative;
+- exchange equity from wallet balance, preferring account-level `totalEquity` and falling back to USDT coin equity or `usdValue`;
+- total equity as `exchange_equity + RESERVE_BALANCE_USDT`.
+
+Current leverage is not calculated. The project compares current position quantity and target position quantity directly.
+
+`portfolio/rebalance_plan.py` converts strategy output into target quantities:
+
+```text
+target_notional = target_leverage[symbol] * total_equity
+target_qty = target_notional / last_close_price
+```
+
+It then aligns current and target position dictionaries by symbol and calculates:
+
+```text
+delta_qty = target_qty - current_qty
+```
+
+If `abs(delta_qty * last_close_price) < MIN_ORDER_NOTIONAL_USDT`, the ordinary rebalance delta is set to `0.0`. This prevents planning tiny normal rebalance orders. The rule does not cover future cleanup logic for small leftover positions.
+
+The rebalance plan output contains:
+
+```python
+{
+    "target_positions": dict[str, float],
+    "current_positions_aligned": dict[str, float],
+    "target_positions_aligned": dict[str, float],
+    "delta_qty": dict[str, float],
+}
+```
+
+This is a calculation artifact only. Stage 6 does not place orders, cancel orders, or change leverage.
+
+## Stage 6 Status
 
 Implemented:
 
@@ -145,10 +183,11 @@ Implemented:
 - Config-driven market universe filters with filtering logs.
 - Replaceable strategy module loader.
 - Momentum-volatility target leverage strategy.
+- Read-only current position and exchange equity parsing.
+- Rebalance plan calculation from target leverage and last close prices.
 - Pytest configuration and base tests.
 
 Not implemented:
 
 - Real order execution flows.
-- Rebalance planning business logic.
 - Docker files.

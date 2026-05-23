@@ -19,7 +19,7 @@ TARGET_LEVERAGE_MODULE = "strategy.momentum_volatility"
 
 # Amount of account equity, in USDT, that future position sizing should leave
 # unused. Stage 1 does not calculate positions yet, so this is only a placeholder.
-RESERVE_BALANCE_USDT = 0.0
+RESERVE_BALANCE_USDT = 40.0
 
 # Future multiplier applied to target position sizes. Values above 1.0 would
 # amplify target exposure, while values below 1.0 would reduce it.

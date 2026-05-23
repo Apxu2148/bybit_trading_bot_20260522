@@ -138,11 +138,18 @@ class BybitClient:
         """Get wallet balance for a Bybit account type."""
         return self._make_private_call(self._get_session().get_wallet_balance, accountType=account_type)
 
-    def get_positions(self, category: str = "linear", symbol: str | None = None) -> Any:
+    def get_positions(
+        self,
+        category: str = "linear",
+        symbol: str | None = None,
+        settle_coin: str | None = None,
+    ) -> Any:
         """Get current positions for all symbols in a category or one symbol."""
         params: dict[str, Any] = {"category": category}
         if symbol is not None:
             params["symbol"] = symbol
+        if settle_coin is not None:
+            params["settleCoin"] = settle_coin
         return self._make_private_call(self._get_session().get_positions, **params)
 
     def place_order(self, **kwargs: Any) -> Any:

@@ -125,6 +125,21 @@ def test_public_wrapper_call_uses_underlying_session(client_test_env: Path) -> N
     assert FakeHTTP.last_instance.calls[-1] == ("get_instruments_info", {"category": "linear"})
 
 
+def test_get_positions_supports_optional_settle_coin(client_test_env: Path) -> None:
+    credentials_path = client_test_env / "api_keys.py"
+    credentials_path.write_text('API_KEY = "test_key"\nAPI_SECRET = "test_secret"\n', encoding="utf-8")
+    client = BybitClient()
+
+    result = client.get_positions(category="linear", symbol=None, settle_coin="USDT")
+
+    assert result["method"] == "get_positions"
+    assert FakeHTTP.last_instance is not None
+    assert FakeHTTP.last_instance.calls[-1] == (
+        "get_positions",
+        {"category": "linear", "settleCoin": "USDT"},
+    )
+
+
 def test_retry_logic_success(client_test_env: Path) -> None:
     client = BybitClient()
     calls = {"count": 0}

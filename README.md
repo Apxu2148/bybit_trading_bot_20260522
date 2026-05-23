@@ -1,8 +1,8 @@
 # bybit_trading_bot_20260522
 
-Stage 5 foundation for a future Python trading bot for Bybit USDT perpetual futures.
+Stage 6 foundation for a future Python trading bot for Bybit USDT perpetual futures.
 
-This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, and tests. Real order execution is not implemented yet.
+This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, and tests. Real order execution is not implemented yet.
 
 ## Setup
 
@@ -46,6 +46,12 @@ For manual read-only strategy verification, run:
 python temp_test_strategy.py
 ```
 
+For manual read-only portfolio and rebalance-plan verification, run:
+
+```powershell
+python temp_test_portfolio_rebalance_plan.py
+```
+
 ## Tests
 
 ```powershell
@@ -60,7 +66,7 @@ secrets/         Example API key file; real credentials stay ignored.
 bybit/           Bybit REST client wrapper boundary.
 market_data/     Instrument discovery, candle loading, and universe filters.
 strategy/        Strategy loader and replaceable target-leverage modules.
-portfolio/       Future position reading and rebalance planning.
+portfolio/       Position reading and rebalance plan calculation.
 execution/       Future order, leverage, rebalance, and cleanup modules.
 risk/            Future risk engine boundary.
 triggers/        Future rebalance trigger boundary.
