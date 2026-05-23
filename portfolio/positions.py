@@ -21,10 +21,10 @@ def get_current_positions(
     """
     logger = _get_main_logger()
     try:
-        response = client.get_positions(category="linear", symbol=None)
+        response = client.get_positions(category="linear", settle_coin="USDT")
     except BybitAPIRequestError:
-        logger.warning("Position request without settleCoin failed; retrying with settleCoin=USDT.")
-        response = client.get_positions(category="linear", symbol=None, settle_coin="USDT")
+        logger.warning("Position request with settleCoin=USDT failed; retrying without settleCoin.")
+        response = client.get_positions(category="linear", settle_coin=None)
 
     positions = parse_positions_response(response)
     if symbols is None:

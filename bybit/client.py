@@ -142,7 +142,7 @@ class BybitClient:
         self,
         category: str = "linear",
         symbol: str | None = None,
-        settle_coin: str | None = None,
+        settle_coin: str | None = "USDT",
     ) -> Any:
         """Get current positions for all symbols in a category or one symbol."""
         params: dict[str, Any] = {"category": category}

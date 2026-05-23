@@ -1,8 +1,8 @@
 # bybit_trading_bot_20260522
 
-Stage 7A foundation for a future Python trading bot for Bybit USDT perpetual futures.
+Stage 7B foundation for a future Python trading bot for Bybit USDT perpetual futures.
 
-This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, low-level execution utilities, and tests. The MA limit rebalancer and main trading loop are not implemented yet.
+This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, low-level execution utilities, the MA limit rebalancer, and tests. The main trading loop is not implemented yet.
 
 ## Setup
 
@@ -56,6 +56,12 @@ An optional live execution smoke test exists, but it may place real orders and r
 
 ```powershell
 python temp_test_execution_manual.py
+```
+
+An optional live MA limit rebalancer test also exists and requires its own exact confirmation:
+
+```powershell
+python temp_test_limit_rebalancer_manual.py
 ```
 
 ## Tests
