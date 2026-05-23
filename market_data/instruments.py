@@ -23,8 +23,7 @@ def get_instruments_info(client: BybitClient) -> dict[str, dict[str, Any]]:
     unsupported rows are skipped instead of crashing universe discovery.
     """
     logger = _get_filtering_logger()
-    response = client.get_instruments_info(category="linear")
-    raw_instruments = _extract_result_list(response)
+    raw_instruments = _load_all_instrument_pages(client)
     instruments: dict[str, dict[str, Any]] = {}
 
     for raw_instrument in raw_instruments:
@@ -48,6 +47,7 @@ def get_instruments_info(client: BybitClient) -> dict[str, dict[str, Any]]:
 
         instruments[symbol] = dict(raw_instrument)
 
+    logger.info("Total active USDT perpetual instruments after filtering: %s.", len(instruments))
     return instruments
 
 
@@ -58,6 +58,42 @@ def get_instrument_info(
     """Return metadata for one active USDT perpetual symbol, if available."""
     normalized_symbol = symbol.upper()
     return get_instruments_info(client).get(normalized_symbol)
+
+
+def _load_all_instrument_pages(client: BybitClient) -> list[Any]:
+    """Load all Bybit instrument pages using nextPageCursor pagination."""
+    logger = _get_filtering_logger()
+    all_instruments: list[Any] = []
+    seen_cursors: set[str] = set()
+    cursor: str | None = None
+    page_number = 1
+
+    while True:
+        response = client.get_instruments_info(category="linear", cursor=cursor)
+        page_instruments = _extract_result_list(response)
+        all_instruments.extend(page_instruments)
+
+        next_cursor = _extract_next_page_cursor(response)
+        logger.info(
+            "Loaded instruments page %s; page_count=%s next_cursor_present=%s.",
+            page_number,
+            len(page_instruments),
+            bool(next_cursor),
+        )
+
+        if not next_cursor:
+            break
+
+        if next_cursor in seen_cursors:
+            logger.warning("Stopping instrument pagination because cursor repeated.")
+            break
+
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+        page_number += 1
+
+    logger.info("Total raw instruments after pagination: %s.", len(all_instruments))
+    return all_instruments
 
 
 def _extract_result_list(response: Any) -> list[Any]:
@@ -80,6 +116,22 @@ def _extract_result_list(response: Any) -> list[Any]:
         return []
 
     return raw_instruments
+
+
+def _extract_next_page_cursor(response: Any) -> str | None:
+    """Extract Bybit V5 result.nextPageCursor safely."""
+    if not isinstance(response, dict):
+        return None
+
+    result = response.get("result")
+    if not isinstance(result, dict):
+        return None
+
+    next_cursor = result.get("nextPageCursor")
+    if not isinstance(next_cursor, str) or not next_cursor:
+        return None
+
+    return next_cursor
 
 
 def _is_usdt_contract(instrument: dict[str, Any]) -> bool:

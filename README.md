@@ -1,8 +1,8 @@
 # bybit_trading_bot_20260522
 
-Stage 8 foundation for a future Python trading bot for Bybit USDT perpetual futures.
+Stage 9 local bot loop for a Python trading bot for Bybit USDT perpetual futures.
 
-This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, low-level execution utilities, the MA limit rebalancer, rebalance orchestration, and tests. The main trading loop is not implemented yet.
+This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, low-level execution utilities, the MA limit rebalancer, rebalance orchestration, the local main loop, and tests.
 
 ## Setup
 
@@ -38,7 +38,9 @@ Never commit real API keys. The Bybit client can run public methods without cred
 python main.py
 ```
 
-The entry point initializes loggers, loads JSON state, and prints that the infrastructure check is ready. It does not place orders.
+The entry point starts the local bot loop. It can place real orders when the rebalance trigger fires or when `RUN_REBALANCE_ON_START = 1` and no prior successful rebalance is recorded. Stop it with Ctrl+C for a graceful shutdown.
+
+Runtime state is stored in `state/bot_state.json`. Logs are written under `logs/`.
 
 For manual read-only strategy verification, run:
 
@@ -70,6 +72,12 @@ An optional live rebalance orchestrator test exists and requires explicit confir
 python temp_test_rebalance_orchestrator_manual.py
 ```
 
+An optional one-cycle local bot test exists and requires explicit confirmation:
+
+```powershell
+python temp_test_run_once_manual.py
+```
+
 ## Tests
 
 ```powershell
@@ -87,7 +95,7 @@ strategy/        Strategy loader and replaceable target-leverage modules.
 portfolio/       Position reading and rebalance plan calculation.
 execution/       Low-level execution, limit rebalancing, and orchestration modules.
 risk/            Future risk engine boundary.
-triggers/        Future rebalance trigger boundary.
+triggers/        Equity rebalance trigger helpers.
 state/           JSON runtime state files.
 logging_setup/   Reusable logger setup.
 utils/           Shared helpers, including exchange rounding.

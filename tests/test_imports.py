@@ -7,6 +7,7 @@ from pathlib import Path
 def test_key_modules_can_be_imported() -> None:
     modules = [
         "config.config",
+        "bot_loop",
         "secrets",
         "bybit.client",
         "market_data.instruments",

@@ -12,13 +12,21 @@ from market_data.instruments import (
 class FakeInstrumentsClient:
     """BybitClient stand-in for instrument tests."""
 
-    def __init__(self, rows: list[Any]) -> None:
-        self.rows = rows
+    def __init__(
+        self,
+        rows: list[Any] | None = None,
+        responses: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self.responses = responses or [{"result": {"list": rows or []}}]
         self.calls: list[dict[str, Any]] = []
 
-    def get_instruments_info(self, category: str) -> dict[str, Any]:
-        self.calls.append({"category": category})
-        return {"result": {"list": self.rows}}
+    def get_instruments_info(self, category: str, cursor: str | None = None) -> dict[str, Any]:
+        call = {"category": category}
+        if cursor is not None:
+            call["cursor"] = cursor
+        self.calls.append(call)
+        index = min(len(self.calls) - 1, len(self.responses) - 1)
+        return self.responses[index]
 
 
 def test_parses_active_usdt_linear_perpetual_symbols() -> None:
@@ -43,6 +51,144 @@ def test_parses_active_usdt_linear_perpetual_symbols() -> None:
 
     assert get_usdt_perpetual_symbols(client) == ["BTCUSDT", "SOLUSDT"]
     assert client.calls == [{"category": "linear"}]
+
+
+def test_get_instruments_info_loads_multiple_pages_when_cursor_exists() -> None:
+    client = FakeInstrumentsClient(
+        responses=[
+            {
+                "result": {
+                    "list": [
+                        {
+                            "symbol": "BTCUSDT",
+                            "quoteCoin": "USDT",
+                            "settleCoin": "USDT",
+                            "contractType": "LinearPerpetual",
+                            "status": "Trading",
+                        }
+                    ],
+                    "nextPageCursor": "page-2",
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {
+                            "symbol": "XRPUSDT",
+                            "quoteCoin": "USDT",
+                            "settleCoin": "USDT",
+                            "contractType": "LinearPerpetual",
+                            "status": "Trading",
+                        }
+                    ],
+                    "nextPageCursor": "",
+                }
+            },
+        ]
+    )
+
+    instruments = get_instruments_info(client)
+
+    assert list(instruments) == ["BTCUSDT", "XRPUSDT"]
+    assert client.calls == [
+        {"category": "linear"},
+        {"category": "linear", "cursor": "page-2"},
+    ]
+
+
+def test_pagination_stops_when_next_page_cursor_is_empty() -> None:
+    client = FakeInstrumentsClient(
+        responses=[
+            {
+                "result": {
+                    "list": [
+                        {
+                            "symbol": "BTCUSDT",
+                            "quoteCoin": "USDT",
+                            "settleCoin": "USDT",
+                            "contractType": "LinearPerpetual",
+                            "status": "Trading",
+                        }
+                    ],
+                    "nextPageCursor": "",
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {
+                            "symbol": "SHOULDNOTLOADUSDT",
+                            "quoteCoin": "USDT",
+                            "settleCoin": "USDT",
+                            "contractType": "LinearPerpetual",
+                            "status": "Trading",
+                        }
+                    ]
+                }
+            },
+        ]
+    )
+
+    instruments = get_instruments_info(client)
+
+    assert list(instruments) == ["BTCUSDT"]
+    assert client.calls == [{"category": "linear"}]
+
+
+def test_pagination_stops_if_cursor_repeats() -> None:
+    client = FakeInstrumentsClient(
+        responses=[
+            {
+                "result": {
+                    "list": [
+                        {
+                            "symbol": "BTCUSDT",
+                            "quoteCoin": "USDT",
+                            "settleCoin": "USDT",
+                            "contractType": "LinearPerpetual",
+                            "status": "Trading",
+                        }
+                    ],
+                    "nextPageCursor": "repeat",
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {
+                            "symbol": "SOLUSDT",
+                            "quoteCoin": "USDT",
+                            "settleCoin": "USDT",
+                            "contractType": "LinearPerpetual",
+                            "status": "Trading",
+                        }
+                    ],
+                    "nextPageCursor": "repeat",
+                }
+            },
+            {
+                "result": {
+                    "list": [
+                        {
+                            "symbol": "SHOULDNOTLOADUSDT",
+                            "quoteCoin": "USDT",
+                            "settleCoin": "USDT",
+                            "contractType": "LinearPerpetual",
+                            "status": "Trading",
+                        }
+                    ]
+                }
+            },
+        ]
+    )
+
+    instruments = get_instruments_info(client)
+
+    assert list(instruments) == ["BTCUSDT", "SOLUSDT"]
+    assert client.calls == [
+        {"category": "linear"},
+        {"category": "linear", "cursor": "repeat"},
+    ]
 
 
 def test_excludes_non_usdt_symbols() -> None:

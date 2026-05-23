@@ -37,6 +37,9 @@ def get_default_state() -> dict[str, Any]:
         mode: Runtime mode marker. Stage 2 uses "normal" by default.
         last_selected_symbol: Symbol most recently selected by future strategy code.
         last_error: Last high-level runtime error message, if any.
+        next_strategy_check_timestamp: UTC timestamp before the next market scan.
+        last_total_equity: Most recent total equity observed by the local loop.
+        last_rebalance_status: Status returned by the latest rebalance attempt.
     """
     return {
         # Account equity snapshot recorded around rebalance time.
@@ -53,6 +56,12 @@ def get_default_state() -> dict[str, Any]:
         "last_selected_symbol": None,
         # Last high-level runtime error message.
         "last_error": None,
+        # UTC timestamp before another strategy check should run.
+        "next_strategy_check_timestamp": None,
+        # Most recent total equity observed by the bot loop.
+        "last_total_equity": None,
+        # Status returned by the latest rebalance attempt.
+        "last_rebalance_status": None,
     }
 
 

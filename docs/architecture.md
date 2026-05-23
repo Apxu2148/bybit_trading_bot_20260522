@@ -4,11 +4,13 @@
 
 `bybit_trading_bot_20260522` is a future Python trading bot for Bybit USDT perpetual futures. The final bot is expected to load market data, select target leverage through a replaceable strategy module, build a rebalance plan, and execute the plan through limit orders.
 
-Stage 8 adds rebalance orchestration on top of the strategy, portfolio, planning, and execution layers. It still does not integrate this orchestration into the main trading loop or Docker files.
+Stage 9 adds a local bot loop that can run from `python main.py`. The loop checks equity, triggers strategy and rebalance work when configured conditions are met, persists runtime state, and exits gracefully on Ctrl+C. Docker files are intentionally left for Stage 10.
 
 ## Module List
 
 - `config/config.py`: Central project settings and placeholder safety parameters.
+- `main.py`: Local entry point that starts the bot loop.
+- `bot_loop.py`: One-cycle and continuous local bot-loop orchestration.
 - `secrets/api_keys.example.py`: Template for local Bybit API credentials.
 - `bybit/client.py`: The only low-level Bybit REST wrapper.
 - `market_data/instruments.py`: Bybit USDT perpetual futures discovery from public instrument metadata.
@@ -24,18 +26,21 @@ Stage 8 adds rebalance orchestration on top of the strategy, portfolio, planning
 - `execution/rebalance_orchestrator.py`: High-level bridge from target leverage to rebalance execution.
 - `execution/cleanup.py`: Small leftover position cleanup helper.
 - `risk/risk_engine.py`: Placeholder for future risk stops.
-- `triggers/rebalance_trigger.py`: Future rebalance trigger rules.
+- `triggers/rebalance_trigger.py`: Equity-threshold rebalance trigger helpers.
 - `state/state_manager.py`: Runtime JSON state persistence.
 - `logging_setup/logger.py`: Main, execution, and filtering logger setup.
 - `utils/rounding.py`: Tick-size and quantity-step rounding helpers.
 - `utils/time_utils.py`: Future UTC timestamp and candle-age helpers.
 
-## Future Interaction Flow
+## Local Bot Flow
 
 ```text
-rebalance_trigger.py
+python main.py
+  -> bot_loop.py
+  -> rebalance_trigger.py
+  -> market_data filters
   -> selected strategy module from TARGET_LEVERAGE_MODULE
-  -> positions.py
+  -> rebalance_orchestrator.py
   -> rebalance_plan.py
   -> limit_rebalancer.py
   -> orders.py
@@ -67,6 +72,8 @@ Before order execution starts, `leverage_manager.py` will try to enable cross ma
 
 `state_manager.py` stores runtime JSON state in `state/bot_state.json`. `logger.py` configures separate log files for main lifecycle messages, execution messages, and filtering messages.
 
+`main.py` calls `run_bot_loop()` with no prompts. The loop initializes loggers, creates `BybitClient`, loads state, runs `run_once()`, sleeps for 60 seconds, and repeats. Ctrl+C raises `KeyboardInterrupt`, which is caught so the process exits cleanly after logging a shutdown message.
+
 ## Bybit Client Boundary
 
 `bybit/client.py` is the only module that should import or call `pybit` directly. Other modules must use `BybitClient` methods instead of constructing their own exchange sessions. This isolates exchange-specific authentication, retry behavior, rate-limit preparation, logging rules, and API parameter naming in one place.
@@ -77,7 +84,7 @@ The wrapper must never log API keys, API secrets, signatures, or full request he
 
 ## Market Data Flow
 
-`market_data/instruments.py` calls `BybitClient.get_instruments_info(category="linear")`, reads the Bybit V5 `result.list` payload, and keeps only instruments that are USDT-settled or USDT-quoted linear perpetual contracts with `status == "Trading"`. Malformed rows are logged and skipped.
+`market_data/instruments.py` calls `BybitClient.get_instruments_info(category="linear")`, follows Bybit V5 `result.nextPageCursor` pagination until all pages are loaded, reads each page's `result.list` payload, and keeps only instruments that are USDT-settled or USDT-quoted linear perpetual contracts with `status == "Trading"`. Repeated cursors stop pagination defensively, and malformed rows are logged and skipped.
 
 `market_data/candles.py` calls `BybitClient.get_kline(category="linear", ...)`, normalizes Bybit kline rows into dictionaries with `start_time_ms`, OHLC, `volume`, and `turnover`, then sorts candles by `start_time_ms` ascending.
 
@@ -222,9 +229,25 @@ abs(target_position_qty) > abs(current_position_qty)
 
 This prepares leverage for opening or increasing exposure and skips leverage preparation when reducing or closing exposure. Flips prepare leverage only when the target side has greater absolute size than the current side.
 
-Stage 8 still does not create automatic live-trading behavior. `run_rebalance(...)` is reusable and manually callable, but it is not wired into `main.py`.
+Stage 9 wires rebalance orchestration into the local bot loop. It is still local-run only; Docker deployment and service supervision are left for Stage 10.
 
-## Stage 8 Status
+## Rebalance Trigger And Bot Loop
+
+`triggers/rebalance_trigger.py` compares current total equity with the stored `rebalance_equity` reference:
+
+```text
+equity_change_pct = current_equity / rebalance_equity - 1
+```
+
+`should_rebalance(...)` fires when the absolute change reaches `REBALANCE_THRESHOLD_PCT`. If `rebalance_equity` is missing or invalid, the loop initializes it to the current total equity.
+
+`RUN_REBALANCE_ON_START = 1` makes the first local launch run one rebalance cycle when there is no previous successful rebalance timestamp in state. Setting it to `0` makes the bot wait until the equity threshold is reached.
+
+`bot_loop.py` builds target leverage from live market data by loading USDT perpetual symbols, applying filters, loading hourly candles, loading the configured strategy module, and calling `calculate_target_leverage(...)`. If no symbol is eligible, target leverage becomes `{}` and `run_rebalance(client, {})` closes current positions through the normal rebalance plan. The state mode changes to `waiting_for_eligible_symbols`, and `next_strategy_check_timestamp` delays the next market scan by `NO_ELIGIBLE_SYMBOLS_RECHECK_INTERVAL_MINUTES`.
+
+Each loop iteration logs exchange equity, reserve balance, total equity, rebalance reference equity, equity-change percentage, and current mode. State keeps only compact runtime values such as `last_total_equity`, rebalance timestamps, selected symbol, last status, last error, and the next strategy-check timestamp. Large market data is not stored.
+
+## Stage 9 Status
 
 Implemented:
 
@@ -247,9 +270,11 @@ Implemented:
 - Exchange rounding helpers.
 - MA-based limit rebalancer with active-symbol protection and optional timeout.
 - Rebalance orchestration from target leverage to sequential delta execution.
+- Equity-threshold rebalance trigger helpers.
+- Local `bot_loop.py` and `main.py` integration.
+- Graceful Ctrl+C shutdown for the local loop.
 - Pytest configuration and base tests.
 
 Not implemented:
 
-- Main trading loop.
 - Docker files.

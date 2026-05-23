@@ -9,6 +9,7 @@ def test_important_config_constants_exist_and_have_basic_types() -> None:
     assert isinstance(config.SCORE_LOOKBACK_HOURS, int)
     assert isinstance(config.MIN_AVG_HOURLY_VOLUME, int)
     assert isinstance(config.REBALANCE_THRESHOLD_PCT, float)
+    assert isinstance(config.RUN_REBALANCE_ON_START, int)
     assert isinstance(config.LEVERAGE_CANDIDATES, list)
     assert isinstance(config.STATE_FILE, str)
     assert isinstance(config.LOG_DIR, str)

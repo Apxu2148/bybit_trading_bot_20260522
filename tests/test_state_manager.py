@@ -16,6 +16,9 @@ REQUIRED_STATE_KEYS = {
     "mode",
     "last_selected_symbol",
     "last_error",
+    "next_strategy_check_timestamp",
+    "last_total_equity",
+    "last_rebalance_status",
 }
 
 

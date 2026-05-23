@@ -110,12 +110,17 @@ API_RETRY_DELAY_SECONDS = 1.0
 # This list is editable because different futures have different maximum leverage.
 LEVERAGE_CANDIDATES = [100, 50, 30, 20, 15, 10, 5]
 
-# Minimum relative position difference required before future rebalance code
-# decides that an order should be planned.
+# Minimum relative equity change required before the local bot loop runs a
+# rebalance cycle.
 REBALANCE_THRESHOLD_PCT = 0.05
 
-# If no symbol passes filters, future trigger logic can wait this many minutes
-# before checking the universe again.
+# Run one rebalance cycle on local bot startup when no prior successful
+# rebalance timestamp exists in state. Set to 0 to wait for the equity
+# threshold trigger instead.
+RUN_REBALANCE_ON_START = 1
+
+# If no symbol passes filters, the bot loop waits this many minutes before
+# checking the universe again.
 NO_ELIGIBLE_SYMBOLS_RECHECK_INTERVAL_MINUTES = 60
 
 # Optional future spread filter. It is disabled in Stage 1 because no market

@@ -107,9 +107,19 @@ class BybitClient:
             )
         return self._call_with_retries(callable_obj, **kwargs)
 
-    def get_instruments_info(self, category: str = "linear") -> Any:
+    def get_instruments_info(
+        self,
+        category: str = "linear",
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> Any:
         """Get Bybit instrument metadata for a category."""
-        return self._make_public_call(self._get_session().get_instruments_info, category=category)
+        params: dict[str, Any] = {"category": category}
+        if cursor is not None:
+            params["cursor"] = cursor
+        if limit is not None:
+            params["limit"] = limit
+        return self._make_public_call(self._get_session().get_instruments_info, **params)
 
     def get_kline(
         self,

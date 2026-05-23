@@ -125,6 +125,32 @@ def test_public_wrapper_call_uses_underlying_session(client_test_env: Path) -> N
     assert FakeHTTP.last_instance.calls[-1] == ("get_instruments_info", {"category": "linear"})
 
 
+def test_get_instruments_info_passes_cursor_when_provided(client_test_env: Path) -> None:
+    client = BybitClient()
+
+    result = client.get_instruments_info(cursor="next-cursor")
+
+    assert result["method"] == "get_instruments_info"
+    assert FakeHTTP.last_instance is not None
+    assert FakeHTTP.last_instance.calls[-1] == (
+        "get_instruments_info",
+        {"category": "linear", "cursor": "next-cursor"},
+    )
+
+
+def test_get_instruments_info_passes_limit_when_provided(client_test_env: Path) -> None:
+    client = BybitClient()
+
+    result = client.get_instruments_info(limit=1000)
+
+    assert result["method"] == "get_instruments_info"
+    assert FakeHTTP.last_instance is not None
+    assert FakeHTTP.last_instance.calls[-1] == (
+        "get_instruments_info",
+        {"category": "linear", "limit": 1000},
+    )
+
+
 def test_get_positions_passes_usdt_settle_coin_by_default(client_test_env: Path) -> None:
     credentials_path = client_test_env / "api_keys.py"
     credentials_path.write_text('API_KEY = "test_key"\nAPI_SECRET = "test_secret"\n', encoding="utf-8")
