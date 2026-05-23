@@ -4,7 +4,7 @@
 
 `bybit_trading_bot_20260522` is a future Python trading bot for Bybit USDT perpetual futures. The final bot is expected to load market data, select target leverage through a replaceable strategy module, build a rebalance plan, and execute the plan through limit orders.
 
-Stage 6 adds read-only portfolio position/equity parsing and rebalance plan calculation on top of the strategy pipeline. It still does not implement real order execution flows or Docker files.
+Stage 7A adds low-level execution utilities on top of the portfolio and rebalance planning pipeline. It still does not implement the MA limit rebalancer, the main trading loop, or Docker files.
 
 ## Module List
 
@@ -18,15 +18,15 @@ Stage 6 adds read-only portfolio position/equity parsing and rebalance plan calc
 - `strategy/momentum_volatility.py`: Default momentum-volatility target leverage strategy.
 - `portfolio/positions.py`: Read-only current-position and exchange-equity reader.
 - `portfolio/rebalance_plan.py`: Target-position and delta-quantity plan builder.
-- `execution/orders.py`: Future low-level order operations.
-- `execution/leverage_manager.py`: Future leverage and cross-margin setup.
+- `execution/orders.py`: Low-level order intent helpers for limit, market, cancel-all, and open-order reads.
+- `execution/leverage_manager.py`: Leverage candidate and best-effort cross-margin helpers.
 - `execution/limit_rebalancer.py`: Future MA-based limit-order rebalance executor.
-- `execution/cleanup.py`: Future cleanup for small leftover positions.
+- `execution/cleanup.py`: Small leftover position cleanup helper.
 - `risk/risk_engine.py`: Placeholder for future risk stops.
 - `triggers/rebalance_trigger.py`: Future rebalance trigger rules.
 - `state/state_manager.py`: Runtime JSON state persistence.
 - `logging_setup/logger.py`: Main, execution, and filtering logger setup.
-- `utils/rounding.py`: Future tick-size and quantity-step helpers.
+- `utils/rounding.py`: Tick-size and quantity-step rounding helpers.
 - `utils/time_utils.py`: Future UTC timestamp and candle-age helpers.
 
 ## Future Interaction Flow
@@ -60,7 +60,7 @@ or:
 {"SOLUSDT": -1.0}
 ```
 
-`positions.py` reads current positions from Bybit and normalizes them. `rebalance_plan.py` converts target leverage to target quantity using the latest close price, then calculates delta quantity. `limit_rebalancer.py` will later execute delta quantity through moving-average-based limit orders. `orders.py` will contain low-level order operations.
+`positions.py` reads current positions from Bybit and normalizes them. `rebalance_plan.py` converts target leverage to target quantity using the latest close price, then calculates delta quantity. `limit_rebalancer.py` will later execute delta quantity through moving-average-based limit orders. `orders.py` contains the low-level order operations that future execution flows can call.
 
 Before order execution starts, `leverage_manager.py` will try to enable cross margin if possible and set the highest accepted leverage from `LEVERAGE_CANDIDATES`.
 
@@ -166,9 +166,25 @@ The rebalance plan output contains:
 }
 ```
 
-This is a calculation artifact only. Stage 6 does not place orders, cancel orders, or change leverage.
+This is a calculation artifact only. Rebalance planning does not place orders, cancel orders, or change leverage.
 
-## Stage 6 Status
+## Low-Level Execution Utilities
+
+`utils/rounding.py` provides exchange-safe rounding helpers:
+
+- prices round to the nearest tick size;
+- quantities round down by absolute value to avoid exceeding intended exposure;
+- signed quantities keep their sign.
+
+`execution/orders.py` maps signed quantity deltas to Bybit sides: positive quantities are `Buy`, negative quantities are `Sell`, and zero quantities are rejected. It sends absolute quantities through `BybitClient.place_order`, and also wraps `cancel_all_orders` and `get_open_orders` for one linear symbol.
+
+`execution/leverage_manager.py` tries configured leverage candidates from `LEVERAGE_CANDIDATES` in order and returns the first accepted value. If all candidates fail, it logs a warning and returns `None`. Its cross-margin helper is best-effort and returns `False` if Bybit rejects or does not support the request.
+
+`execution/cleanup.py` is for future tiny leftover positions. It finds positions below `MIN_POSITION_NOTIONAL_USDT`, tries normal market closes first, then reduce-only market closes, and returns a summary of `closed`, `failed`, and `skipped` symbols. Cleanup is not called automatically in Stage 7A.
+
+Stage 7B will implement the moving-average limit rebalancer that uses these low-level utilities. Stage 7A does not create automatic live-trading behavior.
+
+## Stage 7A Status
 
 Implemented:
 
@@ -185,9 +201,14 @@ Implemented:
 - Momentum-volatility target leverage strategy.
 - Read-only current position and exchange equity parsing.
 - Rebalance plan calculation from target leverage and last close prices.
+- Low-level order helper functions.
+- Leverage candidate and best-effort margin helpers.
+- Small-position cleanup helper.
+- Exchange rounding helpers.
 - Pytest configuration and base tests.
 
 Not implemented:
 
-- Real order execution flows.
+- MA limit rebalancer.
+- Main trading loop.
 - Docker files.

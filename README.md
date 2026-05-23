@@ -1,8 +1,8 @@
 # bybit_trading_bot_20260522
 
-Stage 6 foundation for a future Python trading bot for Bybit USDT perpetual futures.
+Stage 7A foundation for a future Python trading bot for Bybit USDT perpetual futures.
 
-This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, and tests. Real order execution is not implemented yet.
+This stage contains project infrastructure, logging, JSON state storage, a thin Bybit REST client wrapper, market data loading, universe filters, a replaceable strategy loader, the default momentum-volatility strategy, portfolio reading, rebalance plan calculation, low-level execution utilities, and tests. The MA limit rebalancer and main trading loop are not implemented yet.
 
 ## Setup
 
@@ -52,6 +52,12 @@ For manual read-only portfolio and rebalance-plan verification, run:
 python temp_test_portfolio_rebalance_plan.py
 ```
 
+An optional live execution smoke test exists, but it may place real orders and requires an exact typed confirmation:
+
+```powershell
+python temp_test_execution_manual.py
+```
+
 ## Tests
 
 ```powershell
@@ -67,11 +73,11 @@ bybit/           Bybit REST client wrapper boundary.
 market_data/     Instrument discovery, candle loading, and universe filters.
 strategy/        Strategy loader and replaceable target-leverage modules.
 portfolio/       Position reading and rebalance plan calculation.
-execution/       Future order, leverage, rebalance, and cleanup modules.
+execution/       Low-level order, leverage, cleanup, and future rebalance modules.
 risk/            Future risk engine boundary.
 triggers/        Future rebalance trigger boundary.
 state/           JSON runtime state files.
 logging_setup/   Reusable logger setup.
-utils/           Future shared helpers.
+utils/           Shared helpers, including exchange rounding.
 tests/           Pytest test suite.
 ```
